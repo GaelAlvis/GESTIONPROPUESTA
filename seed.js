@@ -30,7 +30,7 @@ const Seed = {
     const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
     const data = Seed.vacio();
-    data.config.negocio = 'Huevos y Escabeches Demo';
+    data.config.negocio = 'Gestión de Flujos';
 
     const proveedores = [
       ['Agencia Avícola El Granjero S.R.L.', '1023456021', 'Rosa Medina', '71234567', 'pedidos@granjero-demo.bo', 'Huevos (agencia)'],

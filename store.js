@@ -140,7 +140,7 @@ const Ops = {
 };
 
 const Store = (() => {
-  const KEY = 'gestion-comercial-demo-bo-v3';
+  const KEY = 'gestion-comercial-demo-bo-v4';
   const S = { data: null, persistente: true };
 
   S.load = function () {

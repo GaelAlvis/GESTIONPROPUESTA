@@ -1,4 +1,4 @@
-# Gestión Comercial (demo)
+# Gestión de Flujos (demo)
 
 Plataforma web para gestionar **ventas por mayor y por menor, productos e inventario, compras y proveedores, gastos e ingresos**. Los datos de ejemplo son de una distribuidora de **huevos** que además **produce escabeches**, pero sirve para cualquier negocio.
 

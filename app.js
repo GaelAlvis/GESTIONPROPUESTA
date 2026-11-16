@@ -5,7 +5,7 @@ const App = {
     ventas: 'Ventas',
     productos: 'Productos, precios y ganancia',
     compras: 'Compras y proveedores',
-    produccion: 'Producción (escabeches)',
+    produccion: 'Producción por lotes',
     mermas: 'Huevos y productos dañados',
     caja: 'Caja: gastos e ingresos',
     config: 'Configuración'
