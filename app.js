@@ -18,6 +18,7 @@ const App = {
     const sb = document.getElementById('sidebar'), scrim = document.getElementById('scrim');
     const toggle = open => { sb.classList.toggle('open', open); scrim.classList.toggle('show', open); };
     document.getElementById('menuBtn').onclick = () => toggle(true);
+    document.getElementById('helpBtn').onclick = () => Tour.ayuda();
     scrim.onclick = () => toggle(false);
     document.getElementById('nav').addEventListener('click', () => toggle(false));
     document.getElementById('topDate').textContent = new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -33,6 +34,9 @@ const App = {
     UI.closeModal();
     App.refresh();
     window.scrollTo(0, 0);
+    // Guía: bienvenida la primera vez y explicación corta la primera vez que se abre cada pantalla
+    clearTimeout(App._guia);
+    App._guia = setTimeout(() => Tour.auto(App.current), 700);
   },
 
   refresh() {
