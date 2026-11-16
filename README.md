@@ -1,6 +1,6 @@
 # Gestión Comercial (demo)
 
-Plataforma web para gestionar **ventas por mayor y por menor, productos e inventario, compras y proveedores, gastos e ingresos**. Sirve para cualquier tipo de negocio: alimentos, limpieza, útiles, ferretería, etc.
+Plataforma web para gestionar **ventas por mayor y por menor, productos e inventario, compras y proveedores, gastos e ingresos**. Los datos de ejemplo son de una distribuidora de **huevos** que además **produce escabeches**, pero sirve para cualquier negocio.
 
 Es una aplicación 100 % estática (HTML + CSS + JavaScript, sin compilar). Funciona en GitHub Pages gratis y ya trae **90 días de datos de ejemplo** para mostrarla.
 
@@ -10,8 +10,10 @@ Es una aplicación 100 % estática (HTML + CSS + JavaScript, sin compilar). Func
 |---|---|
 | **Resumen** | Ventas, utilidad bruta y neta, gastos, ticket promedio, valor del inventario. Gráficos de ventas por día (mayor/menor), productos más vendidos y gastos por categoría. Alertas de stock bajo, vencimientos y cuentas por pagar. |
 | **Ventas** | Punto de venta con precio automático según cantidad y presentación, sugerencia de "lleva X más y paga menos", descuento, medio de pago y comprobante imprimible. Historial con filtros, anulación (devuelve stock) y exportación a CSV. |
-| **Productos e inventario** | Catálogo con unidad base, presentaciones (unidad, paquete, caja, saco…), escalas de precio por volumen, margen, stock mínimo, vencimiento y ajustes de stock (mermas, conteo físico). |
-| **Compras y proveedores** | Órdenes de compra que suman stock y recalculan el costo promedio ponderado. Compras pagadas o a crédito, sugerencia de reposición. Directorio de proveedores con total comprado y deuda. |
+| **Productos y precios** | Lista de precios por producto: costo de compra (agencia) o de producción, precio mayorista, precio al cliente final y la ganancia de cada uno. Ganancia real por producto en el periodo. Catálogo con presentaciones (unidad, maple x30, caja x360, frasco…), escalas por volumen, stock mínimo y vencimiento. |
+| **Compras y proveedores** | Compras a la agencia que suman stock y recalculan el costo promedio ponderado. Compras pagadas o a crédito, sugerencia de reposición. Directorio de proveedores con total comprado y deuda. |
+| **Producción** | Lotes de producción (escabeches): insumos y costos invertidos, cantidad producida, costo por frasco y ganancia esperada por mayor y al cliente final. Ganancia real según lo vendido. |
+| **Huevos dañados** | Registro de huevos o productos dañados (rotos en transporte, trizados, sucios, vencidos…). Reporte de cantidad, % de lo comprado, pérdida en Bs por semana, motivo y producto. |
 | **Caja** | Estado de resultados, flujo de caja, entradas y salidas por semana, ventas por medio de pago y registro de gastos u otros ingresos. |
 | **Configuración** | Nombre del negocio, moneda, respaldo y restauración (.json), regenerar los datos de ejemplo o empezar en blanco. |
 
@@ -19,8 +21,8 @@ Es una aplicación 100 % estática (HTML + CSS + JavaScript, sin compilar). Func
 
 1. Cada producto tiene una **unidad base** (und, kg, L…), que es en la que se lleva el stock.
 2. Cada **presentación** indica cuántas unidades base contiene (p. ej. *Caja x12* = 12 und).
-3. Cada presentación tiene **escalas por volumen**: *Unidad*: 1+ a Bs 16,90 y 12+ a Bs 15,80; *Caja x12*: 1+ a Bs 182,40 y 5+ a Bs 174,80.
-4. Una línea de venta cuenta como **por mayor** si usa una presentación con más de 1 unidad o si alcanza una escala por volumen.
+3. Cada presentación tiene **escalas por volumen**. Ej. Huevo Extra: *Maple x30*: 1+ a Bs 30 (cliente final) y 10+ a Bs 28 (mayorista); *Caja x360*: 1+ a Bs 320 y 5+ a Bs 312.
+4. Cada presentación se marca como **cliente final** o **mayorista**. Una venta cuenta como **por mayor** si usa una presentación mayorista o si alcanza una escala por volumen.
 
 ## Publicarla gratis en GitHub Pages
 

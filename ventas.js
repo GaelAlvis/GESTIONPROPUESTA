@@ -62,18 +62,19 @@ Views.ventas = {
       (!q || p.nombre.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)));
     document.getElementById('prodGrid').innerHTML = prods.map(p => {
       const bajo = p.stock <= p.stockMin;
+      const res = Pricing.resumen(p);
       return `<button class="prod-card" data-act="add" data-id="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>
         <span class="pc-cat">${U.esc(p.categoria)}</span>
         <span class="pc-name">${U.esc(p.nombre)}</span>
-        <span class="pc-meta ${bajo ? 'bad' : ''}">Stock: ${U.num(p.stock)} ${U.esc(p.unidad)}</span>
-        <span class="pc-price"><b>${U.money(Pricing.precioMenor(p))}</b><span class="pc-meta">Mayor desde ${U.money(Pricing.precioMayorMin(p))}</span></span>
+        <span class="pc-meta ${bajo ? 'bad' : ''}">Stock: ${res.ref.factor > 1 ? U.num(Math.floor(p.stock / res.ref.factor)) + ' ' + U.esc(res.ref.nombre.split(' ')[0].toLowerCase()) + 's' : U.num(p.stock) + ' ' + U.esc(p.unidad)}</span>
+        <span class="pc-price"><b>${U.money(res.final)}</b><span class="pc-meta">${U.esc(res.ref.nombre)} · mayor ${U.money(res.mayorista)}</span></span>
       </button>`;
     }).join('') || '<div class="empty">No hay productos que coincidan.</div>';
   },
 
   add(id) {
     const p = Store.producto(id);
-    const presId = p.presentaciones[0].id;
+    const presId = Pricing.presRef(p).id;
     const l = this.cart.find(x => x.productoId === id && x.presId === presId);
     if (l) l.cantidad += 1; else this.cart.push({ productoId: id, presId, cantidad: 1 });
     this.renderCart();

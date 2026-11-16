@@ -1,9 +1,14 @@
 window.Views = window.Views || {};
 
 Views.productos = {
-  q: '', cat: '', estado: '',
+  q: '', cat: '', estado: '', tab: 'precios', periodo: '30d',
+
+  tabsHtml() {
+    return UI.tabs([['precios', 'Precios y ganancia'], ['inv', 'Inventario', Store.data.productos.length]], this.tab);
+  },
 
   render(el) {
+    if (this.tab === 'precios') return this.renderPrecios(el);
     const D = Store.data;
     const q = this.q.trim().toLowerCase();
     const limite = U.addDays(U.today(), D.config.diasVencimiento || 30);
@@ -16,7 +21,7 @@ Views.productos = {
     const valor = U.sum(D.productos, p => Math.max(0, p.stock) * p.costo);
     const bajos = D.productos.filter(p => p.stock <= p.stockMin).length;
 
-    el.innerHTML = `
+    el.innerHTML = `${this.tabsHtml()}
       <div class="grid grid-kpi" style="margin-bottom:16px">
         ${Views.dashboard.kpi('Productos', U.num(D.productos.length), Store.categorias().length + ' categorías')}
         ${Views.dashboard.kpi('Valor del inventario', U.money(valor), 'Al costo promedio')}
@@ -59,6 +64,7 @@ Views.productos = {
         </tbody></table></div>`;
 
     UI.bind(el, {
+      tab: id => { this.tab = id; App.refresh(); },
       q: v => { this.q = v; clearTimeout(this._t); this._t = setTimeout(() => { App.refresh(); const i = document.querySelector('.search input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); },
       cat: v => { this.cat = v; App.refresh(); },
       estado: v => { this.estado = v; App.refresh(); },
@@ -75,6 +81,90 @@ Views.productos = {
         const rows = [['Código', 'Producto', 'Categoría', 'Unidad', 'Stock', 'Stock mínimo', 'Costo', 'Precio menor', 'Mejor precio mayor', 'Vence']];
         D.productos.forEach(p => rows.push([p.codigo, p.nombre, p.categoria, p.unidad, p.stock, p.stockMin, p.costo, U.r2(Pricing.precioMenor(p)), U.r2(Pricing.precioMayorMin(p)), p.vence]));
         U.download('inventario.csv', U.toCSV(rows), 'text/csv;charset=utf-8');
+      }
+    });
+  },
+
+  /* ---------- Precios (costo agencia / mayorista / cliente final) y ganancia real por producto ---------- */
+  renderPrecios(el) {
+    const D = Store.data;
+    const r = U.rango(this.periodo);
+    const ventas = D.ventas.filter(v => U.enRango(v.fecha, r));
+    const mermas = (D.mermas || []).filter(m => U.enRango(m.fecha, r));
+    const st = {};
+    D.productos.forEach(p => { st[p.id] = { base: 0, mayor: 0, menor: 0, costo: 0, merma: 0 }; });
+    ventas.forEach(v => {
+      const f = v.bruto ? v.total / v.bruto : 1;
+      v.items.forEach(i => {
+        const s = st[i.productoId]; if (!s) return;
+        s.base += i.cantidadBase; s.costo += i.costo;
+        s[i.canal === 'mayor' ? 'mayor' : 'menor'] += i.subtotal * f;
+      });
+    });
+    mermas.forEach(m => { if (st[m.productoId]) st[m.productoId].merma += m.perdida; });
+    const filas = D.productos.map(p => ({ p, res: Pricing.resumen(p), s: st[p.id] }));
+    const cats = [...new Set(filas.map(x => x.p.categoria))];
+    const T = { mayor: 0, menor: 0, costo: 0, merma: 0 };
+    filas.forEach(({ s }) => { T.mayor += s.mayor; T.menor += s.menor; T.costo += s.costo; T.merma += s.merma; });
+    const tVentas = T.mayor + T.menor, tGan = tVentas - T.costo - T.merma;
+    const g = (v, cls = '') => `<span class="${v < 0 ? 'bad' : cls}">${U.money(v)}</span>`;
+
+    el.innerHTML = `${this.tabsHtml()}
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Lista de precios y ganancia por unidad</div>
+          <div class="card-sub">Costo de compra (agencia) o de producción, precio mayorista, precio al cliente final y lo que se gana en cada uno</div></div>
+          <button class="btn btn-sm" data-act="csvPrecios">${ICON.download} Exportar</button></div>
+        <div class="table-wrap flat"><table class="cards-sm">
+          <thead><tr><th style="min-width:200px">Producto</th><th>Se vende por</th><th class="num">Costo<div class="th-sub">agencia / producción</div></th>
+            <th class="num">Precio mayorista</th><th class="num">Ganancia mayorista</th>
+            <th class="num">Precio cliente final</th><th class="num">Ganancia cliente final</th><th></th></tr></thead>
+          <tbody>${cats.map(c => `<tr class="group-row"><td colspan="8">${U.esc(c)}</td></tr>` + filas.filter(x => x.p.categoria === c).map(({ p, res }) => `<tr>
+            <td class="c-title"><div class="cell-main">${U.esc(p.nombre)}</div><div class="cell-sub">${U.esc(p.codigo || '')}${res.ref.factor > 1 ? ' · ' + U.money(p.costo) + ' por ' + U.esc(p.unidad) : ''}</div></td>
+            <td data-label="Se vende por">${U.esc(res.ref.nombre)}</td>
+            <td class="num" data-label="Costo (agencia / producción)">${U.money(res.costo)}</td>
+            <td class="num" data-label="Precio mayorista">${U.money(res.mayorista)}</td>
+            <td class="num" data-label="Ganancia mayorista"><div class="cell-main">${g(res.ganMayor, 'good')}</div><div class="cell-sub">${U.pct(res.mgMayor)}</div></td>
+            <td class="num" data-label="Precio cliente final">${U.money(res.final)}</td>
+            <td class="num" data-label="Ganancia cliente final"><div class="cell-main">${g(res.ganFinal, 'good')}</div><div class="cell-sub">${U.pct(res.mgFinal)}</div></td>
+            <td class="actions c-act"><button class="icon-btn" data-act="editar" data-id="${p.id}" aria-label="Editar precios" title="Editar precios">${ICON.edit}</button></td>
+          </tr>`).join('')).join('') || '<tr><td colspan="8" class="empty">Aún no hay productos.</td></tr>'}</tbody></table></div>
+        <p class="muted" style="margin:12px 0 0;font-size:12.5px">El precio mayorista es el mejor precio por volumen (p. ej. por caja). El costo se actualiza solo con cada compra a la agencia o cada lote de producción.</p>
+      </div>
+
+      <div class="toolbar mt">${UI.periodo(this.periodo)}<span class="muted">${r.desde === '0000-01-01' ? 'Todo el historial' : U.fmtDate(r.desde) + ' – ' + U.fmtDate(r.hasta)}</span></div>
+      <div class="grid grid-kpi">
+        ${Views.dashboard.kpi('Vendido por mayor', U.money(T.mayor), U.pct(tVentas ? T.mayor / tVentas * 100 : 0) + ' de las ventas')}
+        ${Views.dashboard.kpi('Vendido al cliente final', U.money(T.menor), U.pct(tVentas ? T.menor / tVentas * 100 : 0) + ' de las ventas')}
+        ${Views.dashboard.kpi('Costo de lo vendido', U.money(T.costo), 'Más ' + U.money(T.merma) + ' en dañados')}
+        ${Views.dashboard.kpi('Ganancia', g(tGan), 'Margen ' + U.pct(tVentas ? tGan / tVentas * 100 : 0) + ' · antes de gastos')}
+      </div>
+      <div class="card mt">
+        <div class="card-head"><div><div class="card-title">Ganancia real por producto</div><div class="card-sub">Lo vendido en el periodo, menos su costo y los productos dañados</div></div></div>
+        <div class="table-wrap flat"><table>
+          <thead><tr><th style="min-width:200px">Producto</th><th class="num">Cantidad vendida</th><th class="num">Ventas por mayor</th><th class="num">Ventas cliente final</th>
+            <th class="num">Costo</th><th class="num">Dañados</th><th class="num">Ganancia</th><th class="num">Margen</th></tr></thead>
+          <tbody>${filas.map(({ p, res, s }) => {
+            const vt = s.mayor + s.menor, gan = vt - s.costo - s.merma;
+            return `<tr>
+              <td class="cell-main">${U.esc(p.nombre)}</td>
+              <td class="num">${res.ref.factor > 1 ? U.num(s.base / res.ref.factor, 1) + ' ' + U.esc(res.ref.nombre.split(' ')[0].toLowerCase()) + 's' : U.num(s.base) + ' ' + U.esc(p.unidad) + (s.base !== 1 ? 's' : '')}</td>
+              <td class="num">${U.money(s.mayor)}</td><td class="num">${U.money(s.menor)}</td>
+              <td class="num">− ${U.money(s.costo)}</td><td class="num">${s.merma ? '− ' + U.money(s.merma) : '—'}</td>
+              <td class="num cell-main">${g(gan, 'good')}</td><td class="num">${U.pct(vt ? gan / vt * 100 : 0)}</td></tr>`;
+          }).join('')}
+          <tr class="total-row"><td>Total</td><td></td><td class="num">${U.money(T.mayor)}</td><td class="num">${U.money(T.menor)}</td>
+            <td class="num">− ${U.money(T.costo)}</td><td class="num">− ${U.money(T.merma)}</td><td class="num">${g(tGan, 'good')}</td><td class="num">${U.pct(tVentas ? tGan / tVentas * 100 : 0)}</td></tr>
+          </tbody></table></div>
+      </div>`;
+
+    UI.bind(el, {
+      tab: id => { this.tab = id; App.refresh(); },
+      periodo: v => { this.periodo = v; App.refresh(); },
+      editar: id => this.editor(Store.producto(id)),
+      csvPrecios: () => {
+        const rows = [['Código', 'Producto', 'Se vende por', 'Costo', 'Precio mayorista', 'Ganancia mayorista', 'Precio cliente final', 'Ganancia cliente final']];
+        filas.forEach(({ p, res }) => rows.push([p.codigo, p.nombre, res.ref.nombre, U.r2(res.costo), U.r2(res.mayorista), U.r2(res.ganMayor), U.r2(res.final), U.r2(res.ganFinal)]));
+        U.download('lista-de-precios.csv', U.toCSV(rows), 'text/csv;charset=utf-8');
       }
     });
   },
@@ -98,7 +188,7 @@ Views.productos = {
             <datalist id="catList">${Store.categorias().map(c => `<option value="${U.esc(c)}">`).join('')}</datalist></div>
           <div class="field"><label>Unidad base</label><input class="input" name="unidad" value="${U.esc(d.unidad)}" placeholder="und, kg, L, paq…">
             <span class="hint">El stock se lleva en esta unidad.</span></div>
-          <div class="field"><label>Costo por unidad base</label><input class="input" name="costo" type="number" step="0.01" min="0" value="${U.r2(d.costo)}">
+          <div class="field"><label>Costo por unidad base (agencia o producción)</label><input class="input" name="costo" type="number" step="0.01" min="0" value="${U.r2(d.costo)}">
             <span class="hint">Se recalcula con cada compra (promedio ponderado).</span></div>
           <div class="field"><label>Stock ${nuevo ? 'inicial' : 'actual'}</label><input class="input" name="stock" type="number" step="1" value="${d.stock}" ${nuevo ? '' : 'disabled'}>
             ${nuevo ? '' : '<span class="hint">Para corregirlo usa "Ajustar stock".</span>'}</div>
@@ -109,7 +199,7 @@ Views.productos = {
             <span class="hint">Déjalo vacío para productos no perecibles.</span></div>
         </div>
         <h3 class="mt" style="font-size:15px">Presentaciones y precios</h3>
-        <p class="muted" style="margin:4px 0 12px">Cada presentación indica cuántas unidades base contiene. Agrega escalas para dar precio por mayor según la cantidad.</p>
+        <p class="muted" style="margin:4px 0 12px">Cada presentación indica cuántas unidades base contiene (p. ej. Maple x30 = 30 huevos). Marca "Cliente final" si se vende al público; si no, cuenta como venta mayorista. Agrega escalas para dar precio mayorista según la cantidad.</p>
         <div class="stack" id="presEditor"></div>
         <button class="btn mt" data-act="addPres">${ICON.plus} Agregar presentación</button>`,
       footer: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-act="guardar">Guardar producto</button>`
@@ -123,6 +213,7 @@ Views.productos = {
           <div class="pres-head">
             <div class="field"><label>Presentación</label><input class="input sm" value="${U.esc(p.nombre)}" data-pi="${pi}" data-k="nombre" placeholder="Ej.: Caja x12"></div>
             <div class="field"><label>Unidades base</label><input class="input sm" type="number" min="1" step="1" value="${p.factor}" data-pi="${pi}" data-k="factor" ${pi === 0 ? 'disabled title="La primera presentación es la unidad base"' : ''}></div>
+            <label class="check"><input type="checkbox" data-pi="${pi}" data-k="menor" ${Pricing.esMenor(p) ? 'checked' : ''}> Cliente final</label>
             ${pi === 0 ? '<span class="badge">Base</span>' : `<button class="icon-btn danger" data-act="delPres" data-id="${pi}" aria-label="Quitar presentación">${ICON.trash}</button>`}
           </div>
           ${p.tramos.map((t, ti) => {
@@ -131,7 +222,7 @@ Views.productos = {
             return `<div class="tramo-row">
               <div class="field">${ti === 0 ? '<label>Desde (cant.)</label>' : ''}<input class="input sm" type="number" min="1" step="1" value="${t.min}" data-pi="${pi}" data-ti="${ti}" data-k="min" ${ti === 0 ? 'disabled' : ''}></div>
               <div class="field">${ti === 0 ? '<label>Precio c/u</label>' : ''}<input class="input sm" type="number" min="0" step="0.01" value="${t.precio}" data-pi="${pi}" data-ti="${ti}" data-k="precio"></div>
-              <div class="hint" style="${ti === 0 ? 'padding-top:18px' : ''}">${ti === 0 && pi === 0 ? 'Precio por menor' : 'Por mayor'} · ${U.money(porBase)}/${U.esc(m.querySelector('[name=unidad]').value || 'und')} ·
+              <div class="hint" style="${ti === 0 ? 'padding-top:18px' : ''}">${ti === 0 && Pricing.esMenor(p) ? 'Cliente final' : 'Mayorista'} · ${U.money(porBase)}/${U.esc(m.querySelector('[name=unidad]').value || 'und')} ·
                 <span class="${mg < 0 ? 'bad' : ''}">margen ${U.pct(mg)}</span></div>
               ${ti === 0 ? '<span></span>' : `<button class="icon-btn danger" data-act="delTramo" data-id="${pi}:${ti}" aria-label="Quitar escala">${ICON.trash}</button>`}
             </div>`;
@@ -146,6 +237,7 @@ Views.productos = {
       if (t.dataset.pi == null) return;
       const p = d.presentaciones[+t.dataset.pi];
       if (t.dataset.k === 'nombre') p.nombre = t.value;
+      if (t.dataset.k === 'menor') { p.menor = t.checked; drawPres(); return; }
       if (t.dataset.k === 'factor') p.factor = Math.max(1, Math.floor(Number(t.value) || 1));
       if (t.dataset.k === 'min') p.tramos[+t.dataset.ti].min = Math.max(1, Math.floor(Number(t.value) || 1));
       if (t.dataset.k === 'precio') p.tramos[+t.dataset.ti].precio = Math.max(0, Number(t.value) || 0);
@@ -192,7 +284,7 @@ Views.productos = {
   ajuste(p) {
     const m = UI.modal({
       title: 'Ajustar stock · ' + p.nombre,
-      body: `<p class="muted" style="margin-top:0">Stock actual: <b>${U.num(p.stock)} ${U.esc(p.unidad)}</b>. Usa ajustes para mermas, roturas, vencidos o conteo físico. Las compras y ventas ya actualizan el stock solas.</p>
+      body: `<p class="muted" style="margin-top:0">Stock actual: <b>${U.num(p.stock)} ${U.esc(p.unidad)}</b>. Usa ajustes para corregir el stock o registrar un conteo físico. Para huevos o productos dañados usa <a href="#/mermas">Huevos dañados</a>, así quedan en el reporte.</p>
         <div class="form-grid">
           <div class="field"><label>Tipo de ajuste</label><select class="select" name="tipo">
             <option value="salida">Salida (merma, rotura, vencido)</option><option value="entrada">Entrada (sobrante, devolución)</option><option value="conteo">Conteo físico (fijar stock)</option></select></div>

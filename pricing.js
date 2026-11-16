@@ -4,8 +4,9 @@
  * Cada presentación tiene un "factor" (cuántas unidades base contiene) y escalas de precio
  * por cantidad (tramos): el precio unitario depende de cuántas presentaciones se lleven.
  *
- * Regla mayor/menor: una línea es "mayorista" si se vende en una presentación con factor > 1
- * o si alcanza un tramo de precio por volumen (distinto del primero).
+ * Regla mayor/menor: una línea es "mayorista" si se vende en una presentación marcada como mayorista
+ * (por defecto, las que tienen factor > 1) o si alcanza un tramo de precio por volumen (distinto del primero).
+ * Ej.: el maple de 30 huevos puede marcarse como "cliente final" aunque contenga 30 unidades.
  */
 const Pricing = {
   tramosOrdenados(pres) {
@@ -24,7 +25,7 @@ const Pricing = {
     const pres = Pricing.pres(prod, presId);
     const q = Math.max(0, Number(qty) || 0);
     const tr = Pricing.tramo(pres, q);
-    const canal = (pres.factor > 1 || tr.idx > 0) ? 'mayor' : 'menor';
+    const canal = (!Pricing.esMenor(pres) || tr.idx > 0) ? 'mayor' : 'menor';
     const subtotal = U.r2(tr.precio * q);
     const precioMenorPres = Pricing.precioMenor(prod) * pres.factor;
     const ahorro = Math.max(0, U.r2(precioMenorPres * q - subtotal));
@@ -34,6 +35,28 @@ const Pricing = {
       sugerencia = { falta, precio: tr.siguiente.precio };
     }
     return { pres, tramo: tr, canal, precioUnit: tr.precio, subtotal, ahorro, cantidadBase: q * pres.factor, sugerencia };
+  },
+  /** ¿La presentación se vende al cliente final? (por defecto, solo la unidad base) */
+  esMenor(pres) {
+    return pres.menor != null ? !!pres.menor : pres.factor === 1;
+  },
+  /** Presentación de referencia para listas de precios: la más grande que se vende al cliente final (p. ej. Maple x30) */
+  presRef(prod) {
+    const menores = prod.presentaciones.filter(Pricing.esMenor);
+    const lista = menores.length ? menores : prod.presentaciones.slice(0, 1);
+    return [...lista].sort((a, b) => b.factor - a.factor)[0];
+  },
+  /** Costo, precio mayorista, precio cliente final y ganancias expresados en la presentación de referencia */
+  resumen(prod) {
+    const ref = Pricing.presRef(prod);
+    const costo = prod.costo * ref.factor;
+    const final = Pricing.tramosOrdenados(ref)[0].precio;
+    const mayorista = Pricing.precioMayorMin(prod) * ref.factor;
+    return {
+      ref, costo, final, mayorista,
+      ganFinal: final - costo, ganMayor: mayorista - costo,
+      mgFinal: Pricing.margen(final, costo), mgMayor: Pricing.margen(mayorista, costo)
+    };
   },
   /** Precio de 1 unidad base al por menor */
   precioMenor(prod) {

@@ -11,7 +11,11 @@ Views.dashboard = {
     const costo = U.sum(ventas, v => v.costoTotal);
     const gastos = U.sum(movs.filter(m => m.tipo === 'gasto'), m => m.monto);
     const otros = U.sum(movs.filter(m => m.tipo === 'ingreso'), m => m.monto);
-    return { ventas, movs, total, costo, bruta: total - costo, gastos, otros, neta: total - costo - gastos + otros };
+    const mermas = (D.mermas || []).filter(m => U.enRango(m.fecha, r));
+    const perdida = U.sum(mermas, m => m.perdida);
+    const lotes = (D.producciones || []).filter(l => U.enRango(l.fecha, r));
+    const inversion = U.sum(lotes, l => l.inversion);
+    return { ventas, movs, total, costo, bruta: total - costo, gastos, otros, mermas, perdida, lotes, inversion, neta: total - costo - perdida - gastos + otros };
   },
 
   render(el) {
@@ -64,9 +68,11 @@ Views.dashboard = {
         ${this.kpi('Ventas', U.money(k.total), delta(k.total, prev && prev.total) || `${U.num(nV)} ventas`)}
         ${this.kpi('Utilidad bruta', U.money(k.bruta), `Margen ${U.pct(k.total ? k.bruta / k.total * 100 : 0)}`)}
         ${this.kpi('Gastos operativos', U.money(k.gastos), delta(k.gastos, prev && prev.gastos, true) || '&nbsp;')}
-        ${this.kpi('Utilidad neta', `<span class="${k.neta < 0 ? 'bad' : ''}">${U.money(k.neta)}</span>`, delta(k.neta, prev && prev.neta) || 'Ventas − costo − gastos + otros ingresos')}
+        ${this.kpi('Utilidad neta', `<span class="${k.neta < 0 ? 'bad' : ''}">${U.money(k.neta)}</span>`, delta(k.neta, prev && prev.neta) || 'Ventas − costo − mermas − gastos')}
         ${this.kpi('Ticket promedio', U.money(ticket), `${U.num(nV)} ventas en el periodo`)}
         ${this.kpi('Inventario (al costo)', U.money(invValor), `Valor a precio menor: ${U.moneyShort(invVenta)}`)}
+        ${this.kpi('<a href="#/mermas">Productos dañados</a>', U.money(k.perdida), `${U.num(U.sum(k.mermas.filter(m => (Store.producto(m.productoId) || {}).unidad === 'huevo'), m => m.cantidad))} huevos dañados ` + (delta(k.perdida, prev && prev.perdida, true) ? '· ' + delta(k.perdida, prev && prev.perdida, true).replace(' vs. periodo anterior', '') : ''))}
+        ${this.kpi('<a href="#/produccion">Invertido en producción</a>', U.money(k.inversion), `${U.num(k.lotes.length)} lotes · ${U.num(U.sum(k.lotes, l => l.cantidad))} unidades producidas`)}
       </div>
 
       <div class="grid grid-3-1 mt">

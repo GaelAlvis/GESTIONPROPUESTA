@@ -40,7 +40,7 @@ Views.caja = {
     const credito = U.sum(k.ventas.filter(v => v.metodo === 'Crédito'), v => v.total);
     const cobrado = k.total - credito;
     const ingresos = cobrado + k.otros;
-    const egresos = comprasPagadas + k.gastos;
+    const egresos = comprasPagadas + k.inversion + k.gastos;
     const porCat = {};
     k.movs.filter(m => m.tipo === 'gasto').forEach(m => { porCat[m.categoria] = (porCat[m.categoria] || 0) + m.monto; });
     const porMetodo = {};
@@ -55,6 +55,7 @@ Views.caja = {
             ${row('Ventas netas', U.money(k.total))}
             ${row('Costo de lo vendido', '− ' + U.money(k.costo), 'sub')}
             ${row('Utilidad bruta', U.money(k.bruta) + ` <span class="muted">(${U.pct(k.total ? k.bruta / k.total * 100 : 0)})</span>`, 'total')}
+            ${row('Mermas (productos dañados)', '− ' + U.money(k.perdida), 'sub')}
             ${Object.entries(porCat).sort((a, b) => b[1] - a[1]).map(([c, v]) => row(U.esc(c), '− ' + U.money(v), 'sub')).join('') || row('Gastos operativos', U.money(0), 'sub')}
             ${row('Total gastos operativos', '− ' + U.money(k.gastos), 'total')}
             ${row('Otros ingresos', '+ ' + U.money(k.otros), 'sub')}
@@ -68,6 +69,7 @@ Views.caja = {
             ${row('Otros ingresos', '+ ' + U.money(k.otros))}
             ${row('Total entradas', U.money(ingresos), 'total')}
             ${row('Pagos a proveedores', '− ' + U.money(comprasPagadas), 'sub')}
+            ${row('Inversión en producción', '− ' + U.money(k.inversion), 'sub')}
             ${row('Gastos operativos', '− ' + U.money(k.gastos), 'sub')}
             ${row('Total salidas', U.money(egresos), 'total')}
             ${row('Flujo neto', `<span class="${ingresos - egresos < 0 ? 'bad' : 'good'}">${U.money(ingresos - egresos)}</span>`, 'total grand')}
@@ -102,6 +104,7 @@ Views.caja = {
     k.ventas.forEach(v => { if (v.metodo !== 'Crédito') add(ent, v.fecha, v.total); });
     k.movs.forEach(m => add(m.tipo === 'ingreso' ? ent : sal, m.fecha, m.monto));
     compras.filter(c => c.estado === 'pagado').forEach(c => add(sal, c.fecha, c.total));
+    k.lotes.forEach(l => add(sal, l.fecha, l.inversion));
     const s = UI.series();
     const bar = { borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 26 };
     UI.chart(document.getElementById('chFlujo'), {

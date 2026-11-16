@@ -98,17 +98,55 @@ const Ops = {
       if (prod) prod.stock = U.r2(prod.stock - i.cantidad * i.factor);
     });
     data.compras = data.compras.filter(x => x.id !== id);
+  },
+  /** Merma (producto dañado): descuenta stock y guarda la pérdida al costo del momento */
+  aplicarMerma(data, m) {
+    const prod = data.productos.find(p => p.id === m.productoId);
+    if (!prod) return;
+    m.nombre = prod.nombre;
+    m.costoUnit = prod.costo;
+    m.perdida = U.r2(prod.costo * m.cantidad);
+    prod.stock = U.r2(prod.stock - m.cantidad);
+    data.mermas.push(m);
+  },
+  anularMerma(data, id) {
+    const m = data.mermas.find(x => x.id === id);
+    if (!m) return;
+    const prod = data.productos.find(p => p.id === m.productoId);
+    if (prod) prod.stock = U.r2(prod.stock + m.cantidad);
+    data.mermas = data.mermas.filter(x => x.id !== id);
+  },
+  /** Lote de producción: la inversión (insumos) se convierte en stock del producto terminado */
+  aplicarProduccion(data, lote) {
+    const prod = data.productos.find(p => p.id === lote.productoId);
+    if (!prod) return;
+    lote.nombre = prod.nombre;
+    lote.inversion = U.r2(U.sum(lote.insumos, i => Number(i.costo) || 0));
+    lote.costoUnit = lote.cantidad > 0 ? U.r2(lote.inversion / lote.cantidad) : 0;
+    const stockPrev = Math.max(0, prod.stock);
+    const total = stockPrev + lote.cantidad;
+    const costoU = lote.cantidad > 0 ? lote.inversion / lote.cantidad : prod.costo;
+    prod.costo = total > 0 ? Math.round((stockPrev * prod.costo + lote.cantidad * costoU) / total * 10000) / 10000 : costoU;
+    prod.stock = U.r2(prod.stock + lote.cantidad);
+    data.producciones.push(lote);
+  },
+  anularProduccion(data, id) {
+    const l = data.producciones.find(x => x.id === id);
+    if (!l) return;
+    const prod = data.productos.find(p => p.id === l.productoId);
+    if (prod) prod.stock = U.r2(prod.stock - l.cantidad);
+    data.producciones = data.producciones.filter(x => x.id !== id);
   }
 };
 
 const Store = (() => {
-  const KEY = 'gestion-comercial-demo-bo-v2';
+  const KEY = 'gestion-comercial-demo-bo-v3';
   const S = { data: null, persistente: true };
 
   S.load = function () {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { S.data = JSON.parse(raw); return; }
+      if (raw) { S.data = Object.assign(Seed.vacio(), JSON.parse(raw)); return; }
     } catch (e) { S.persistente = false; }
     S.data = Seed.generar();
     S.save();

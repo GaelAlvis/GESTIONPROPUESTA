@@ -3,8 +3,10 @@ const App = {
   routes: {
     dashboard: 'Resumen del negocio',
     ventas: 'Ventas',
-    productos: 'Productos e inventario',
+    productos: 'Productos, precios y ganancia',
     compras: 'Compras y proveedores',
+    produccion: 'Producción (escabeches)',
+    mermas: 'Huevos y productos dañados',
     caja: 'Caja: gastos e ingresos',
     config: 'Configuración'
   },
